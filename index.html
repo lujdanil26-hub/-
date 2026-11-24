@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Мой учёт доставок</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#151d31;--muted:#91a0ba;--line:#293650;--accent:#5ee0ad;--danger:#ff7373}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f4f7ff;font:16px system-ui,-apple-system,sans-serif;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+header{max-width:760px;margin:0 auto;padding:22px 4px 12px}h1{font-size:25px;margin:0 0 5px}small,.muted{color:var(--muted)}main{max-width:760px;margin:auto;padding-bottom:30px}
+nav{display:flex;gap:8px;overflow:auto;padding:8px 0 14px}button,.tab{border:0;border-radius:12px;padding:12px 14px;background:#24314b;color:white;font-weight:650;font-size:14px;white-space:nowrap}
+.tab.active,button.primary{background:var(--accent);color:#092218}.tab{cursor:pointer}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.stat{background:#10182a;border-radius:14px;padding:14px}.stat b{font-size:23px;display:block;margin-top:5px}
+label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}input,textarea,select{width:100%;padding:13px;border-radius:11px;border:1px solid var(--line);background:#0d1526;color:white;font:inherit}textarea{min-height:70px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+button.danger{background:#512b38;color:#ffdce2}button.ghost{background:#293650}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:9px 5px;border-bottom:1px solid var(--line);text-align:right}td:first-child,th:first-child{text-align:left}
+.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border:0}.hidden{display:none!important}.total{font-size:26px;font-weight:800;color:var(--accent)}
+footer{font-size:12px;color:var(--muted);text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<header><h1>Мой учёт доставок</h1><small>Личный журнал ходок и калькулятор блоков</small></header>
+<main>
+<nav>
+<button class="tab active" data-tab="home">Главная</button><button class="tab" data-tab="add">Добавить ходку</button><button class="tab" data-tab="calc">Калькулятор</button><button class="tab" data-tab="history">История</button><button class="tab" data-tab="backup">Резервная копия</button>
+</nav>
+<section id="home" class="page">
+<div class="stats">
+<div class="stat"><small>Сегодня, шт.</small><b id="today">0</b></div><div class="stat"><small>За месяц, шт.</small><b id="month">0</b></div>
+<div class="stat"><small>Всего ходок</small><b id="trips">0</b></div><div class="stat"><small>Всего × 37</small><b id="mult">0</b></div>
+</div><div class="panel"><h3>Последние ходки</h3><div id="recent" class="muted">Пока записей нет.</div></div>
+</section>
+<section id="add" class="page hidden"><div class="panel"><h2 id="formTitle">Новая ходка</h2>
+<input id="editId" type="hidden"><label>Дата</label><input id="date" type="date">
+<label>Название или номер ходки</label><input id="name" placeholder="Например: Ходка 1 / №25">
+<label>Количество штук</label><input id="qty" type="number" min="0" inputmode="numeric" placeholder="0">
+<label>Примечание (необязательно)</label><textarea id="note" placeholder="Дополнительная информация"></textarea>
+<div class="actions"><button class="primary" onclick="saveTrip()">Сохранить</button><button class="ghost" onclick="resetForm()">Очистить</button></div></div></section>
+<section id="calc" class="page hidden"><div class="panel"><h2>Калькулятор блоков</h2><small>Введи количество блоков. Штук в блоке уже указано.</small><div id="calcRows"></div><hr style="border-color:var(--line)">
+<div>Общее количество штук</div><div class="total" id="sum">0</div><div style="margin-top:12px">Общее количество × 37</div><div class="total" id="sum37">0</div>
+<div class="actions"><button class="primary" onclick="useCalc()">Добавить результат в ходку</button><button class="ghost" onclick="clearCalc()">Обнулить</button></div></div></section>
+<section id="history" class="page hidden"><div class="panel"><h2>История</h2><label>Фильтр по месяцу</label><input id="filterMonth" type="month" onchange="renderHistory()"><div id="historyList"></div></div></section>
+<section id="backup" class="page hidden"><div class="panel"><h2>Резервная копия</h2><p class="muted">Сохрани файл с записями в телефон. При смене телефона или очистке данных браузера сможешь восстановить журнал.</p><div class="actions"><button class="primary" onclick="backup()">Скачать копию</button><button class="ghost" onclick="document.getElementById('restoreFile').click()">Восстановить из файла</button><input id="restoreFile" type="file" accept="application/json" hidden onchange="restore(event)"></div></div>
+<div class="panel"><h3>Важно</h3><p class="muted">Записи хранятся на этом устройстве. Делай резервную копию время от времени.</p></div></section>
+<footer>Данные сохраняются локально на устройстве</footer>
+</main>
+<script>
+const products=[["1.5 л газ",6],["1 л газ",8],["0.5 л газ",12],["0.33 л",12],["0.5 л без газа",12],["5 л",2],["1.5 л без газа",6],["1 л без газа",8],["10 л",1],["Пикник",4],["Чай 1 л",6],["Чай 0.5 л",12]];
+let records=JSON.parse(localStorage.getItem("deliveryRecords")||"[]");
+const $=id=>document.getElementById(id), fmt=n=>Number(n||0).toLocaleString("ru-RU");
+function persist(){localStorage.setItem("deliveryRecords",JSON.stringify(records));render()}
+function showTab(id){document.querySelectorAll(".page").forEach(x=>x.classList.toggle("hidden",x.id!==id));document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));if(id==="history")renderHistory()}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+$("date").value=new Date().toISOString().slice(0,10);
+function resetForm(){$("editId").value="";$("formTitle").textContent="Новая ходка";$("date").value=new Date().toISOString().slice(0,10);$("name").value="";$("qty").value="";$("note").value=""}
+function saveTrip(){let qty=Number($("qty").value);if(!Number.isFinite(qty)||qty<0||$("name").value.trim()===""){alert("Укажи название ходки и количество штук.");return}
+let item={id:$("editId").value||String(Date.now()),date:$("date").value,name:$("name").value.trim(),qty,note:$("note").value.trim()};
+let i=records.findIndex(x=>x.id===item.id);if(i>=0)records[i]=item;else records.push(item);persist();resetForm();showTab("history")}
+function editTrip(id){let x=records.find(r=>r.id===id);if(!x)return;showTab("add");$("editId").value=x.id;$("formTitle").textContent="Изменить ходку";$("date").value=x.date;$("name").value=x.name;$("qty").value=x.qty;$("note").value=x.note||""}
+function deleteTrip(id){if(confirm("Удалить эту ходку?")){records=records.filter(x=>x.id!==id);persist()}}
+function render(){let now=new Date(),ym=now.toISOString().slice(0,7),today=now.toISOString().slice(0,10);let t=records.filter(x=>x.date===today).reduce((a,x)=>a+x.qty,0),m=records.filter(x=>x.date.startsWith(ym)).reduce((a,x)=>a+x.qty,0),all=records.reduce((a,x)=>a+x.qty,0);
+$("today").textContent=fmt(t);$("month").textContent=fmt(m);$("trips").textContent=fmt(records.length);$("mult").textContent=fmt(all*37);
+let last=[...records].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);$("recent").innerHTML=last.length?last.map(x=>`<div class="item"><b>${esc(x.name)}</b><br><small>${x.date} · ${fmt(x.qty)} шт.</small></div>`).join(""):"Пока записей нет."}
+function renderHistory(){let f=$("filterMonth").value;let arr=[...records].filter(x=>!f||x.date.startsWith(f)).sort((a,b)=>b.date.localeCompare(a.date));$("historyList").innerHTML=arr.length?arr.map(x=>`<div class="item"><b>${esc(x.name)}</b><br><small>${x.date} · ${fmt(x.qty)} шт. ${x.note?"· "+esc(x.note):""}</small><div class="actions"><button class="ghost" onclick="editTrip('${x.id}')">Изменить</button><button class="danger" onclick="deleteTrip('${x.id}')">Удалить</button></div></div>`).join(""):"<p class='muted'>Записей пока нет.</p>"}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+$("calcRows").innerHTML=products.map((p,i)=>`<div class="row" style="align-items:center;padding:7px 0;border-bottom:1px solid var(--line)"><div>${p[0]}<br><small>${p[1]} шт. в блоке</small></div><input type="number" min="0" step="1" inputmode="numeric" placeholder="Блоков" data-i="${i}" class="blocks"></div>`).join("");
+document.querySelectorAll(".blocks").forEach(x=>x.addEventListener("input",calc));
+function calc(){let total=0;document.querySelectorAll(".blocks").forEach(x=>total+=(Number(x.value)||0)*products[Number(x.dataset.i)][1]);$("sum").textContent=fmt(total);$("sum37").textContent=fmt(total*37);return total}
+function clearCalc(){document.querySelectorAll(".blocks").forEach(x=>x.value="");calc()}
+function useCalc(){let q=calc();if(!q){alert("Сначала введи количество блоков.");return}resetForm();$("qty").value=q;$("name").value="Ходка";showTab("add")}
+function backup(){let blob=new Blob([JSON.stringify({records,version:1},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-dostavki.json";a.click();URL.revokeObjectURL(a.href)}
+function restore(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!Array.isArray(d.records))throw 0;if(confirm("Заменить текущие записи данными из копии?")){records=d.records;persist();alert("Копия восстановлена.")}}catch{alert("Не удалось прочитать файл копии.")}};r.readAsText(f);e.target.value=""}
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+render();calc();
+</script>
+</body></html>
